@@ -32,7 +32,7 @@ allowed_origins = [
 
 env_frontend = os.getenv("FRONTEND_URL")
 if env_frontend:
-    # Support comma-separated origins if provided
+    # Support comma-separated origins or wildcard if provided
     for origin in env_frontend.split(","):
         cleaned = origin.strip()
         if cleaned and cleaned not in allowed_origins:
@@ -42,9 +42,10 @@ logger.info(f"Configuring CORS with origins: {allowed_origins}")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=allowed_origins if "*" not in allowed_origins else ["*"],
+    allow_origin_regex=r"^https://.*\.vercel\.app$",
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "OPTIONS", "HEAD"],
     allow_headers=["*"],
 )
 

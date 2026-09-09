@@ -1,47 +1,27 @@
 import axios from 'axios';
 
 /**
- * Resolves the API base URL.
- * In production (such as Vercel deployment), uses relative paths ('') so that
- * requests route directly to the same deployment's own API routes:
- *   /api/health
- *   /api/analyze-decision
- *   /api/chat-followup
- * Never falls back to http://localhost:8000 in production.
+ * FastAPI Backend Base URL.
+ * In Vercel, set VITE_API_URL=https://<your-fastapi-backend-url>
+ * Local development falls back to http://localhost:8000
  */
-const resolveApiBaseUrl = () => {
-  const envUrl = import.meta.env.VITE_API_URL;
-  if (envUrl && envUrl.trim().length > 0) {
-    return envUrl.trim();
-  }
-  // Always use relative URL in production or deployed environments
-  if (import.meta.env.PROD) {
-    return '';
-  }
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    return '';
-  }
-  // Local development default: relative path for unified serverless, or fallback
-  return '';
-};
-
-const API_BASE_URL = resolveApiBaseUrl();
+export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 45000, // 45 seconds for deep AI reasoning
+  timeout: 45000, // 45 seconds for deep Gemini 3.8 Flash analysis
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
 /**
- * Pings the backend health endpoint (/api/health)
- * Uses relative URL in production so it pings the current deployment's own API.
+ * Pings the FastAPI health endpoint:
+ * GET ${import.meta.env.VITE_API_URL}/api/health
  */
 export const checkBackendHealth = async () => {
   try {
-    const response = await apiClient.get('/api/health', { timeout: 6000 });
+    const response = await apiClient.get('/api/health', { timeout: 8000 });
     return {
       online: response.status === 200,
       data: response.data,
@@ -51,15 +31,14 @@ export const checkBackendHealth = async () => {
     return {
       online: false,
       data: null,
-      error: 'Backend API is currently offline or unreachable.',
+      error: `FastAPI backend is unreachable at ${API_BASE_URL}. Verify VITE_API_URL in Vercel settings and ensure FastAPI is running.`,
     };
   }
 };
 
 /**
- * Analyzes a business decision using the application's API route (/api/analyze-decision)
- * @param {Object} payload Decision input parameters
- * @returns {Promise<Object>} Analysis result
+ * Analyzes a business decision through FastAPI:
+ * POST ${import.meta.env.VITE_API_URL}/api/analyze-decision
  */
 export const analyzeDecision = async (payload) => {
   try {
@@ -82,14 +61,14 @@ export const analyzeDecision = async (payload) => {
     let friendlyMessage = 'An unexpected error occurred while analyzing your business decision.';
 
     if (!error.response) {
-      friendlyMessage = 'Cannot connect to the backend API. Please ensure the application deployment is active.';
+      friendlyMessage = `Cannot reach the FastAPI backend at ${API_BASE_URL}. Ensure your backend service is deployed and VITE_API_URL is configured.`;
     } else if (error.response.status === 400) {
       const detail = error.response.data?.detail;
       friendlyMessage = typeof detail === 'string'
         ? detail
         : 'Please verify that all required decision parameters are filled out accurately.';
     } else if (error.response.status === 500) {
-      friendlyMessage = 'The AI reasoning engine encountered a temporary condition. Please try again.';
+      friendlyMessage = 'The AI reasoning engine encountered a temporary processing condition. Please try again.';
     } else {
       friendlyMessage = error.response.data?.detail || `Server responded with status ${error.response.status}.`;
     }
@@ -103,10 +82,8 @@ export const analyzeDecision = async (payload) => {
 };
 
 /**
- * Executive follow-up consultation endpoint (/api/chat-followup)
- * Allows users to ask follow-up questions regarding an evaluated decision.
- * @param {Object} payload { question, decision, recommendation, reasoning, history }
- * @returns {Promise<Object>} Follow-up strategic response
+ * Executive follow-up consultation endpoint:
+ * POST ${import.meta.env.VITE_API_URL}/api/chat-followup
  */
 export const chatFollowUp = async (payload) => {
   try {
@@ -128,7 +105,9 @@ export const chatFollowUp = async (payload) => {
     return {
       success: false,
       data: null,
-      error: typeof detail === 'string' ? detail : 'Unable to generate follow-up answer at this time.',
+      error: typeof detail === 'string' 
+        ? detail 
+        : `Unable to reach FastAPI follow-up advisor at ${API_BASE_URL}.`,
     };
   }
 };
