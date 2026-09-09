@@ -33,3 +33,17 @@ class DecisionResponse(BaseModel):
     alternatives: List[AlternativeOption] = Field(default_factory=list, description="2-3 viable counter-strategies with trade-offs")
     confidence_score: int = Field(..., ge=0, le=100, description="Confidence percentage score (0-100)")
     risk_level: str = Field(..., description="Assessed risk level: Low, Medium, or High")
+
+
+class ChatFollowUpRequest(BaseModel):
+    question: str = Field(..., min_length=2, max_length=1500, description="Executive follow-up question")
+    decision: Optional[str] = Field(default="", description="Original evaluated decision")
+    recommendation: Optional[str] = Field(default="", description="Generated recommendation")
+    reasoning: Optional[str] = Field(default="", description="Core strategic reasoning")
+    history: Optional[List[dict]] = Field(default_factory=list, description="Prior conversation messages")
+
+
+class ChatFollowUpResponse(BaseModel):
+    answer: str = Field(..., description="Strategic advisor follow-up response")
+    model_used: Optional[str] = Field(default="gemini-3.8-flash", description="Model used for response")
+

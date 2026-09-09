@@ -3,11 +3,12 @@ import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { 
   CheckCircle2, AlertTriangle, ArrowRight, Printer, 
   Copy, Check, Sparkles, Building2, Briefcase, DollarSign, Clock, 
-  RefreshCw, HelpCircle, Layers, ArrowLeft
+  RefreshCw, HelpCircle, Layers, ArrowLeft, Send, Bot, MessageSquare, Loader2
 } from 'lucide-react';
 import RiskBadge from '../components/RiskBadge';
 import ConfidenceGauge from '../components/ConfidenceGauge';
 import { historyService } from '../services/historyService';
+import { chatFollowUp } from '../services/api';
 
 export default function ResultsPage() {
   const location = useLocation();
@@ -80,6 +81,46 @@ ${(analysis.alternatives || []).map((a) => `- Option: ${a.option}\n  Trade-off: 
   const budgetDisplay = input?.budget && Number(input.budget) > 0 
     ? `$${Number(input.budget).toLocaleString()}` 
     : 'Not specified';
+
+  // Executive Follow-up Consultation State
+  const [followUpQuestion, setFollowUpQuestion] = useState('');
+  const [isAsking, setIsAsking] = useState(false);
+  const [followUpHistory, setFollowUpHistory] = useState([]);
+  const [chatError, setChatError] = useState(null);
+
+  const handleSendFollowUp = async (qText) => {
+    const questionToSend = (typeof qText === 'string' ? qText : followUpQuestion).trim();
+    if (!questionToSend || isAsking) return;
+
+    setIsAsking(true);
+    setChatError(null);
+    setFollowUpQuestion('');
+
+    const userMsg = { sender: 'user', text: questionToSend };
+    setFollowUpHistory((prev) => [...prev, userMsg]);
+
+    const res = await chatFollowUp({
+      question: questionToSend,
+      decision: input?.decision,
+      recommendation: analysis?.recommendation,
+      reasoning: analysis?.reasoning,
+      history: followUpHistory,
+    });
+
+    if (res.success && res.data) {
+      setFollowUpHistory((prev) => [
+        ...prev,
+        {
+          sender: 'ai',
+          text: res.data.answer || 'Consultation response generated.',
+          model: res.data.model_used || 'gemini-3.8-flash',
+        },
+      ]);
+    } else {
+      setChatError(res.error || 'Failed to generate answer. Please try again.');
+    }
+    setIsAsking(false);
+  };
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
@@ -309,6 +350,107 @@ ${(analysis.alternatives || []).map((a) => `- Option: ${a.option}\n  Trade-off: 
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Executive Strategic Follow-up Advisor (/api/chat-followup) */}
+      <div className="bg-white dark:bg-navy-800 rounded-2xl border border-slate-200 dark:border-navy-700 p-6 sm:p-8 shadow-card space-y-6">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span>Executive Follow-up Advisor</span>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                Gemini 3.8 Flash
+              </span>
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Ask clarifying questions regarding rollout milestones, downside mitigation, or capital protection.
+            </p>
+          </div>
+        </div>
+
+        {/* Quick starter questions */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            'What should be our primary 30-day go/no-go milestone?',
+            'How should we reallocate budget if early conversion lags?',
+            'What operational blind spots should our leadership team monitor?',
+          ].map((promptText, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => handleSendFollowUp(promptText)}
+              disabled={isAsking}
+              className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-900 text-slate-700 dark:text-slate-300 hover:border-blue-300 dark:hover:border-blue-600 hover:text-blue-600 dark:hover:text-blue-400 transition-colors text-left disabled:opacity-50"
+            >
+              💬 {promptText}
+            </button>
+          ))}
+        </div>
+
+        {/* Q&A Message Stream */}
+        {followUpHistory.length > 0 && (
+          <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-navy-700">
+            {followUpHistory.map((msg, idx) => (
+              <div
+                key={idx}
+                className={`p-4 rounded-xl text-xs sm:text-sm leading-relaxed ${
+                  msg.sender === 'user'
+                    ? 'bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-blue-950 dark:text-blue-200 ml-6 sm:ml-12'
+                    : 'bg-slate-50 dark:bg-navy-900 border border-slate-200 dark:border-navy-700 text-slate-800 dark:text-slate-200 mr-6 sm:mr-12'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-bold mb-1.5 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  {msg.sender === 'user' ? (
+                    <span>Executive Question</span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                      <Bot className="w-3.5 h-3.5" /> AI Strategic Advisor (Gemini 3.8 Flash)
+                    </span>
+                  )}
+                </div>
+                <p className="whitespace-pre-line">{msg.text}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Chat Error Banner */}
+        {chatError && (
+          <p className="text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 p-3 rounded-lg border border-rose-200 dark:border-rose-900">
+            {chatError}
+          </p>
+        )}
+
+        {/* Input box */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSendFollowUp();
+          }}
+          className="flex items-center gap-2"
+        >
+          <input
+            type="text"
+            value={followUpQuestion}
+            onChange={(e) => setFollowUpQuestion(e.target.value)}
+            placeholder="Ask a strategic follow-up question (e.g., 'How do we protect gross margin during phase 1?')"
+            disabled={isAsking}
+            className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+          />
+          <button
+            type="submit"
+            disabled={isAsking || !followUpQuestion.trim()}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isAsking ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+            <span className="hidden sm:inline">Ask Advisor</span>
+          </button>
+        </form>
       </div>
 
     </div>

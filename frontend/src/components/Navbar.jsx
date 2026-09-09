@@ -87,7 +87,7 @@ export default function Navbar() {
                     ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' 
                     : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800'
               }`}
-              title={backendStatus.online ? `FastAPI connected (Model: ${backendStatus.model})` : 'FastAPI backend unreachable'}
+              title={backendStatus.online ? `API Connected (Model: ${backendStatus.model})` : 'Backend API offline or unreachable'}
             >
               <span className={`w-2 h-2 rounded-full ${
                 backendStatus.checking ? 'bg-slate-400 animate-ping' : backendStatus.online ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'

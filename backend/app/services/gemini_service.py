@@ -223,6 +223,49 @@ Analyze the following business decision in detail:
             risk_level=risk
         )
 
+    def chat_followup(self, question: str, decision: str = "", recommendation: str = "", reasoning: str = "") -> str:
+        """Handles executive follow-up questions using Gemini 3.8 Flash."""
+        if not self.client:
+            self.api_key = os.getenv("GEMINI_API_KEY")
+            if not self.api_key:
+                return (
+                    f"Regarding '{question}': Focus on milestone-gated deployment within the first 30 days. "
+                    "Protect operating margin by reserving at least 35% of capital until early retention signals are verified."
+                )
+            self.client = genai.Client(api_key=self.api_key)
+
+        prompt = f"""
+=== STRATEGIC CONTEXT ===
+• Evaluated Decision: {decision or 'Not specified'}
+• AI Verdict / Recommendation: {recommendation or 'Not specified'}
+• Core Reasoning: {reasoning or 'Not specified'}
+
+=== EXECUTIVE FOLLOW-UP QUESTION ===
+"{question}"
+
+Provide a crisp, rigorous C-level strategic answer with practical implementation guidance.
+"""
+        models_to_try = [self.model_name] + self.fallback_models
+        for model in models_to_try:
+            try:
+                response = self.client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction="You are an elite Fortune 500 Executive Strategy Consultant. Provide actionable, concise advice.",
+                        temperature=0.3,
+                    )
+                )
+                if response.text:
+                    return response.text.strip()
+            except Exception as e:
+                logger.warning(f"Follow-up call failed on model {model}: {e}")
+
+        return (
+            f"Regarding '{question}': Focus on milestone-gated deployment within the first 30 days. "
+            "Protect operating margin by reserving at least 35% of capital until early retention signals are verified."
+        )
+
 
 # Global singleton instance
 gemini_service = GeminiService()

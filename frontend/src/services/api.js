@@ -1,7 +1,31 @@
 import axios from 'axios';
 
-// Resolve API base URL from environment variable, falling back to local port 8000
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+/**
+ * Resolves the API base URL.
+ * In production (such as Vercel deployment), uses relative paths ('') so that
+ * requests route directly to the same deployment's own API routes:
+ *   /api/health
+ *   /api/analyze-decision
+ *   /api/chat-followup
+ * Never falls back to http://localhost:8000 in production.
+ */
+const resolveApiBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl && envUrl.trim().length > 0) {
+    return envUrl.trim();
+  }
+  // Always use relative URL in production or deployed environments
+  if (import.meta.env.PROD) {
+    return '';
+  }
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return '';
+  }
+  // Local development default: relative path for unified serverless, or fallback
+  return '';
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -12,11 +36,12 @@ const apiClient = axios.create({
 });
 
 /**
- * Pings the backend health endpoint
+ * Pings the backend health endpoint (/api/health)
+ * Uses relative URL in production so it pings the current deployment's own API.
  */
 export const checkBackendHealth = async () => {
   try {
-    const response = await apiClient.get('/api/health', { timeout: 4000 });
+    const response = await apiClient.get('/api/health', { timeout: 6000 });
     return {
       online: response.status === 200,
       data: response.data,
@@ -26,15 +51,15 @@ export const checkBackendHealth = async () => {
     return {
       online: false,
       data: null,
-      error: 'Backend is offline or unreachable at ' + API_BASE_URL,
+      error: 'Backend API is currently offline or unreachable.',
     };
   }
 };
 
 /**
- * Analyzes a business decision through the decoupled FastAPI backend
- * @param {Object} payload Decision input payload
- * @returns {Promise<Object>} Analyzed decision response
+ * Analyzes a business decision using the application's API route (/api/analyze-decision)
+ * @param {Object} payload Decision input parameters
+ * @returns {Promise<Object>} Analysis result
  */
 export const analyzeDecision = async (payload) => {
   try {
@@ -57,15 +82,14 @@ export const analyzeDecision = async (payload) => {
     let friendlyMessage = 'An unexpected error occurred while analyzing your business decision.';
 
     if (!error.response) {
-      // Network failure or backend server not running
-      friendlyMessage = `Cannot reach the backend server at ${API_BASE_URL}. Please ensure the FastAPI backend is running on port 8000.`;
+      friendlyMessage = 'Cannot connect to the backend API. Please ensure the application deployment is active.';
     } else if (error.response.status === 400) {
       const detail = error.response.data?.detail;
-      friendlyMessage = typeof detail === 'string' 
-        ? detail 
+      friendlyMessage = typeof detail === 'string'
+        ? detail
         : 'Please verify that all required decision parameters are filled out accurately.';
     } else if (error.response.status === 500) {
-      friendlyMessage = 'The AI analysis engine encountered a temporary processing condition. Please try again or refine your input.';
+      friendlyMessage = 'The AI reasoning engine encountered a temporary condition. Please try again.';
     } else {
       friendlyMessage = error.response.data?.detail || `Server responded with status ${error.response.status}.`;
     }
@@ -74,6 +98,37 @@ export const analyzeDecision = async (payload) => {
       success: false,
       data: null,
       error: friendlyMessage,
+    };
+  }
+};
+
+/**
+ * Executive follow-up consultation endpoint (/api/chat-followup)
+ * Allows users to ask follow-up questions regarding an evaluated decision.
+ * @param {Object} payload { question, decision, recommendation, reasoning, history }
+ * @returns {Promise<Object>} Follow-up strategic response
+ */
+export const chatFollowUp = async (payload) => {
+  try {
+    const response = await apiClient.post('/api/chat-followup', {
+      question: payload.question,
+      decision: payload.decision || '',
+      recommendation: payload.recommendation || '',
+      reasoning: payload.reasoning || '',
+      history: payload.history || [],
+    });
+
+    return {
+      success: true,
+      data: response.data,
+      error: null,
+    };
+  } catch (error) {
+    const detail = error.response?.data?.detail;
+    return {
+      success: false,
+      data: null,
+      error: typeof detail === 'string' ? detail : 'Unable to generate follow-up answer at this time.',
     };
   }
 };

@@ -1,0 +1,15 @@
+{
+  "name": "ai-business-decision-assistant",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "start": "npm --prefix frontend run start",
+    "preview": "npm --prefix frontend run preview"
+  },
+  "dependencies": {
+    "@google/genai": "^2.21.0"
+  }
+}
